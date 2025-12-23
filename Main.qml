@@ -7,8 +7,8 @@ import HikCameraPlayer 1.0
 
 ApplicationWindow {
     id: window
-    width: 900
-    height: 600
+    minimumWidth: 950
+    minimumHeight: 600
     visible: true
     title: "Hikvision Player (Material Theme)"
 
@@ -50,16 +50,16 @@ ApplicationWindow {
                     text: checked ? "浅色" : "深色"
                     checked: false
                     onCheckedChanged: {
-                        window.Material.theme = checked ? Material.Light : Material.Dark;
+                        window.Material.theme = checked ? Material.Light : Material.Dark
                     }
                 }
 
                 ComboBox {
                     model: ["Blue", "Red", "Green", "Amber", "Purple"]
                     onActivated: index => {
-                        const colors = [Material.Blue, Material.Red, Material.Green, Material.Amber, Material.Purple];
-                        window.Material.accent = colors[index];
-                    }
+                                     const colors = [Material.Blue, Material.Red, Material.Green, Material.Amber, Material.Purple]
+                                     window.Material.accent = colors[index]
+                                 }
                 }
             }
         }
@@ -121,16 +121,19 @@ ApplicationWindow {
                         highlighted: true
                         onClicked: {
                             if (controller.isLoggedIn)
-                                controller.logout();
+                                controller.logout()
                             else
-                                controller.login(ipField.text, parseInt(portField.text), userField.text, passField.text);
+                                controller.login(ipField.text,
+                                                 parseInt(portField.text),
+                                                 userField.text, passField.text)
                         }
                     }
                     Button {
                         text: controller.isPlaying ? "停止" : "播放"
                         enabled: controller.isLoggedIn
                         highlighted: true
-                        onClicked: controller.isPlaying ? controller.stopPlay() : controller.startPlay()
+                        onClicked: controller.isPlaying ? controller.stopPlay(
+                                                              ) : controller.startPlay()
                     }
                     Button {
                         text: "拍照"
