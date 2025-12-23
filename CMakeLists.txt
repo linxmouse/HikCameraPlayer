@@ -1,58 +1,77 @@
 cmake_minimum_required(VERSION 3.16)
-project(HikRealPlayer VERSION 1.0 LANGUAGES CXX)
+project(HikCameraPlayer VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Multimedia)
 qt_standard_project_setup(REQUIRES 6.10)
+set(QT_QML_GENERATE_QMLLS_INI ON)
 
-# 设置二进制输出路径到 bin 目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin)
 
-qt_add_executable(HikRealPlayer WIN32
+qt_add_executable(HikCameraPlayer WIN32
     main.cpp
 )
 
-qt_add_qml_module(HikRealPlayer
-    URI HikRealPlayer
+# Debug模式支持QML调试
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DQT_QML_DEBUG)
+endif()
+
+qt_add_qml_module(HikCameraPlayer
+    URI HikCameraPlayer
     VERSION 1.0
-    QML_FILES Main.qml
+    QML_FILES 
+        Main.qml
     SOURCES
         src/AppController.h
         src/AppController.cpp
 )
 
-target_include_directories(HikRealPlayer PRIVATE 
+target_include_directories(HikCameraPlayer PRIVATE 
     src
     sdk
 )
 
-target_link_libraries(HikRealPlayer
+target_link_libraries(HikCameraPlayer
     PRIVATE Qt6::Quick
     PRIVATE Qt6::QuickControls2
+    PRIVATE Qt6::Multimedia
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk/HCNetSDK.lib
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk/PlayCtrl.lib
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk/HCCore.lib
 )
 
-# 获取 SDK 目录下的所有 DLL 文件
 file(GLOB SDK_DLLS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/*.dll")
-# 复制 SDK DLL 文件到 bin 目录
-add_custom_command(TARGET HikRealPlayer POST_BUILD
+add_custom_command(TARGET HikCameraPlayer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${SDK_DLLS}
-        "$<TARGET_FILE_DIR:HikRealPlayer>"
+        "$<TARGET_FILE_DIR:HikCameraPlayer>"
     COMMENT "Copying SDK DLLs to bin directory..."
 )
-# 复制 HCNetSDKCom 文件夹到 bin 目录
-add_custom_command(TARGET HikRealPlayer POST_BUILD
+add_custom_command(TARGET HikCameraPlayer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/sdk/HCNetSDKCom"
-        "$<TARGET_FILE_DIR:HikRealPlayer>/HCNetSDKCom"
+        "$<TARGET_FILE_DIR:HikCameraPlayer>/HCNetSDKCom"
     COMMENT "Copying HCNetSDKCom folder to bin directory..."
 )
+
+if(WINDEPLOYQT_EXECUTABLE AND NOT WINDEPLOYQT_EXECUTABLE MATCHES "Qt/6")
+    unset(WINDEPLOYQT_EXECUTABLE CACHE)
+endif()
+get_target_property(QT_BIN_DIR Qt6::Core LOCATION)
+get_filename_component(QT_BIN_DIR "${QT_BIN_DIR}" DIRECTORY)
+find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${QT_BIN_DIR}" NO_DEFAULT_PATH)
+if(WINDEPLOYQT_EXECUTABLE)
+    add_custom_command(TARGET HikCameraPlayer POST_BUILD
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+            --qmldir "${CMAKE_CURRENT_SOURCE_DIR}"
+            "$<TARGET_FILE:HikCameraPlayer>"
+        COMMENT "Running windeployqt..."
+    )
+endif()

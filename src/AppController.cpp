@@ -5,6 +5,13 @@
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QDir>
+#include <QVideoFrameFormat>
+#include <QFile>
+#include <QMutexLocker>
+
+// 初始化静态成员
+QMap<LONG, AppController*> AppController::s_instances;
+QMutex AppController::s_mutex;
 
 // 异常回调函数
 void CALLBACK ExceptionCallBack(DWORD dwType, LONG lUserID, LONG lHandle, void* pUser)
@@ -25,10 +32,12 @@ void CALLBACK ExceptionCallBack(DWORD dwType, LONG lUserID, LONG lHandle, void* 
 AppController::AppController(QObject* parent): QObject(parent) 
 {
     // 初始化 SDK
-    if (!NET_DVR_Init()) {
+    if (!NET_DVR_Init())
+    {
         qDebug() << "NET_DVR_Init failed, error code:" << NET_DVR_GetLastError();
         setStatus("SDK 初始化失败");
-    } else {
+    } else
+    {
         qDebug() << "NET_DVR_Init success";
         // 设置异常回调
         NET_DVR_SetExceptionCallBack_V30(0, NULL, ExceptionCallBack, NULL);
@@ -47,8 +56,6 @@ AppController::~AppController()
 void AppController::setSDKLog(bool enable)
 {
     if (enable) {
-        // 设置日志路径和级别
-        // 注意：NET_DVR_SetLogToFile 的第二个参数是 char*，需要非 const 指针
         char logDir[] = "./sdk_log/";
         NET_DVR_SetLogToFile(3, logDir, true);
         qDebug() << "SDK Log enabled, path: ./sdk_log/";
@@ -58,8 +65,8 @@ void AppController::setSDKLog(bool enable)
 bool AppController::login(const QString& ip, int port, const QString& user, const QString& password)
 {
     qDebug() << "Login attempt:" << ip << port << user;
-
-    if (m_lUserID >= 0) {
+    if (m_lUserID >= 0)
+    {
         logout();
     }
 
@@ -72,7 +79,6 @@ bool AppController::login(const QString& ip, int port, const QString& user, cons
 
     NET_DVR_DEVICEINFO_V40 struDeviceInfo = {0};
     m_lUserID = NET_DVR_Login_V40(&struLoginInfo, &struDeviceInfo);
-
     if (m_lUserID < 0) {
         DWORD err = NET_DVR_GetLastError();
         qDebug() << "NET_DVR_Login_V40 failed, error code:" << err;
@@ -102,50 +108,159 @@ void AppController::logout()
     setStatus("已登出");
 }
 
-void AppController::startPlay(QObject* window)
+void CALLBACK AppController::RealDataCallBack(LONG lRealHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, void *pUser)
 {
-    if (m_lUserID < 0) {
+    AppController* self = static_cast<AppController*>(pUser);
+    if (!self) return;
+
+    switch (dwDataType)
+    {
+    case NET_DVR_SYSHEAD: // 系统头
+        if (self->m_nPort >= 0) {
+            PlayM4_Stop(self->m_nPort);
+            PlayM4_CloseStream(self->m_nPort);
+            
+            QMutexLocker locker(&s_mutex);
+            s_instances.remove(self->m_nPort);
+            PlayM4_FreePort(self->m_nPort);
+            self->m_nPort = -1;
+        }
+
+        if (!PlayM4_GetPort(&self->m_nPort)) {
+            break;
+        }
+
+        {
+            QMutexLocker locker(&s_mutex);
+            s_instances.insert(self->m_nPort, self);
+        }
+
+        // 设置流模式为实时流
+        PlayM4_SetStreamOpenMode(self->m_nPort, STREAME_REALTIME);
+
+        if (!PlayM4_OpenStream(self->m_nPort, pBuffer, dwBufSize, 1024 * 1024)) {
+            break;
+        }
+
+        // 设置解码回调
+        if (!PlayM4_SetDecCallBack(self->m_nPort, DecCBFun)) {
+            break;
+        }
+
+        if (!PlayM4_Play(self->m_nPort, NULL)) {
+            break;
+        }
+        break;
+
+    case NET_DVR_STREAMDATA: // 码流数据
+        if (self->m_nPort >= 0) {
+            if (!PlayM4_InputData(self->m_nPort, pBuffer, dwBufSize)) {
+                // qDebug() << "PlayM4_InputData failed";
+            }
+        }
+        break;
+    }
+}
+
+void CALLBACK AppController::DecCBFun(long nPort, char * pBuf, long nSize, FRAME_INFO * pFrameInfo, long nReserved1, long nReserved2)
+{
+    AppController* self = nullptr;
+    {
+        QMutexLocker locker(&s_mutex);
+        self = s_instances.value(nPort, nullptr);
+    }
+
+    if (!self || !self->m_videoSink) return;
+
+    // 只处理视频数据 (YV12)
+    if (pFrameInfo->nType == T_YV12)
+    {
+        // 检查是否需要抓图
+        bool captureThis = false;
+        QString path;
+        {
+            QMutexLocker locker(&s_mutex);
+            if (self->m_captureNextFrame)
+            {
+                captureThis = true;
+                path = self->m_pendingCapturePath;
+                self->m_captureNextFrame = false;
+            }
+        }
+
+        if (captureThis) 
+        {
+            // 使用 PlayM4_ConvertToJpegFile 直接将 YUV 缓冲转换为 JPEG 文件
+            if (PlayM4_ConvertToJpegFile(pBuf, nSize, pFrameInfo->nWidth, pFrameInfo->nHeight, pFrameInfo->nType, path.toLocal8Bit().data()))
+            {
+                self->setStatus("拍照成功: " + QFileInfo(path).fileName());
+            } else
+            {
+                self->setStatus("拍照失败 (转换失败)");
+            }
+        }
+
+        QSize size(pFrameInfo->nWidth, pFrameInfo->nHeight);
+        QVideoFrameFormat format(size, QVideoFrameFormat::Format_YV12);
+        QVideoFrame frame(format);
+        if (frame.map(QVideoFrame::WriteOnly))
+        {
+            uchar* yPtr = frame.bits(0);
+            uchar* vPtr = frame.bits(1);
+            uchar* uPtr = frame.bits(2);        
+            int yStride = frame.bytesPerLine(0);
+            int vStride = frame.bytesPerLine(1);
+            int uStride = frame.bytesPerLine(2);        
+            int width = size.width();
+            int height = size.height();           
+            // 拷贝 Y 平面
+            const char* srcY = pBuf;
+            for (int i = 0; i < height; ++i)
+            {
+                memcpy(yPtr + i * yStride, srcY + i * width, width);
+            }       
+            // 拷贝 V 平面 (YV12 中 V 在 U 前面)
+            const char* srcV = pBuf + width * height;
+            for (int i = 0; i < height / 2; ++i)
+            {
+                memcpy(vPtr + i * vStride, srcV + i * (width / 2), width / 2);
+            }        
+            // 拷贝 U 平面
+            const char* srcU = srcV + (width * height / 4);
+            for (int i = 0; i < height / 2; ++i)
+            {
+                memcpy(uPtr + i * uStride, srcU + i * (width / 2), width / 2);
+            }
+            
+            frame.unmap();
+            self->m_videoSink->setVideoFrame(frame);
+        }
+    }
+}
+
+void AppController::startPlay()
+{
+    if (m_lUserID < 0)
+    {
         setStatus("请先登录!");
         return;
     }
 
-    if (!window) {
-        setStatus("无效的播放窗口!");
-        return;
-    }
-
-    // 强制显示窗口并处理事件，确保 winId 有效
-    window->setProperty("visible", true);
-    QCoreApplication::processEvents();
-
-    QQuickWindow* qmlWindow = qobject_cast<QQuickWindow*>(window);
-    if (!qmlWindow) {
-        setStatus("无法获取窗口对象!");
-        return;
-    }
-
-    WId winId = qmlWindow->winId();
-    if (winId == 0) {
-        setStatus("窗口句柄尚未创建!");
-        return;
-    }
-
-    if (m_lRealHandle >= 0) {
+    if (m_lRealHandle >= 0)
+    {
         stopPlay();
     }
-
-    qDebug() << "Starting play on window handle:" << (void*)winId << "channel:" << m_channel;
-
+    qDebug() << "Starting play with callback, channel:" << m_channel;
     NET_DVR_PREVIEWINFO struPlayInfo = {0};
-    struPlayInfo.hPlayWnd = (HWND)winId;
+    struPlayInfo.hPlayWnd = NULL; 
     struPlayInfo.lChannel = m_channel;
     struPlayInfo.dwStreamType = 0;   // 主码流
     struPlayInfo.dwLinkMode = 0;     // TCP
     struPlayInfo.bBlocked = 1;       // 阻塞
 
-    m_lRealHandle = NET_DVR_RealPlay_V40(m_lUserID, &struPlayInfo, NULL, NULL);
-
-    if (m_lRealHandle < 0) {
+    m_lRealHandle = NET_DVR_RealPlay_V40(m_lUserID, &struPlayInfo, RealDataCallBack, this);
+    if (m_lRealHandle < 0)
+    {
         DWORD err = NET_DVR_GetLastError();
         qDebug() << "NET_DVR_RealPlay_V40 failed, error code:" << err;
         setStatus(QString("播放失败, 错误码: %1").arg(err));
@@ -154,15 +269,27 @@ void AppController::startPlay(QObject* window)
 
     m_isPlaying = true;
     emit playingChanged();
-    setStatus(QString("正在播放通道 %1...").arg(m_channel));
+    setStatus(QString("正在播放通道 %1 (回调模式)...").arg(m_channel));
 }
 
 void AppController::stopPlay()
 {
-    if (m_lRealHandle >= 0) {
+    if (m_lRealHandle >= 0)
+    {
         NET_DVR_StopRealPlay(m_lRealHandle);
         m_lRealHandle = -1;
     }
+    if (m_nPort >= 0)
+    {
+        PlayM4_Stop(m_nPort);
+        PlayM4_CloseStream(m_nPort);
+        
+        QMutexLocker locker(&s_mutex);
+        s_instances.remove(m_nPort);
+        PlayM4_FreePort(m_nPort);
+        m_nPort = -1;
+    }
+
     m_isPlaying = false;
     emit playingChanged();
     setStatus("已停止播放");
@@ -170,32 +297,30 @@ void AppController::stopPlay()
 
 void AppController::capture()
 {
-    if (m_lRealHandle < 0) {
+    if (m_nPort < 0)
+    {
         setStatus("请先开始播放!");
         return;
-    }
-    
-    // 获取用户下载目录
+    } 
     QString downloadPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-    if (downloadPath.isEmpty()) {
+    if (downloadPath.isEmpty())
+    {
         downloadPath = QDir::currentPath();
-    }
-    
-    // 确保目录存在
+    } 
     QDir dir(downloadPath);
-    if (!dir.exists()) {
+    if (!dir.exists())
+    {
         dir.mkpath(".");
     }
-
     QString fileName = QString("capture_%1.jpg").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
     QString fullPath = dir.absoluteFilePath(fileName);
-
-    if (NET_DVR_CapturePicture(m_lRealHandle, fullPath.toLocal8Bit().data())) {
-        setStatus("拍照成功: " + fileName);
-        qDebug() << "Picture saved to:" << fullPath;
-    } else {
-        setStatus(QString("拍照失败, 错误码: %1").arg(NET_DVR_GetLastError()));
+    {
+        QMutexLocker locker(&s_mutex);
+        m_captureNextFrame = true;
+        m_pendingCapturePath = fullPath;
     }
+    
+    setStatus("正在抓图...");
 }
 
 void AppController::setStatus(const QString& msg)

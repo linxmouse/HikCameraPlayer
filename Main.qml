@@ -1,153 +1,192 @@
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
-// 导入模块以使用 AppController
-import HikRealPlayer
+import QtQuick 6.0
+import QtQuick.Controls 6.0
+import QtQuick.Controls.Material 6.0
+import QtQuick.Layouts 6.0
+import QtMultimedia
+import HikCameraPlayer 1.0
 
 ApplicationWindow {
     id: window
-    width: 800
-    height: 450
+    width: 900
+    height: 600
     visible: true
-    title: "CCTV Player"
+    title: "Hikvision Player (Material Theme)"
 
-    // 创建c++对象实例
+    // 设置默认主题
+    Material.theme: Material.Dark
+    Material.accent: Material.Blue
+
     AppController {
         id: controller
     }
 
-    // 独立的视频预览窗口 (无边框，用于嵌入效果)
-    Window {
-        id: videoWindow
-        width: videoPlaceholder.width
-        height: videoPlaceholder.height
-        flags: Qt.FramelessWindowHint | Qt.Window // 无边框
-        color: "transparent"
-        visible: controller.isPlaying
-
-        onClosing: {
-            controller.stopPlay()
-        }
-
-        // 实时同步位置
-        Timer {
-            interval: 16
-            running: videoWindow.visible
-            repeat: true
-            onTriggered: {
-                var globalPos = videoPlaceholder.mapToGlobal(0, 0)
-                videoWindow.x = globalPos.x
-                videoWindow.y = globalPos.y
-            }
-        }
-    }
-
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 6
-        spacing: 6
+        anchors.margins: 10
+        spacing: 10
 
-        // 登录栏
+        // 顶部工具栏
         RowLayout {
-            spacing: 6
+            Layout.fillWidth: true
+
             Label {
-                text: "IP:"
+                text: "CameraPlayer By Linxmouse"
+                font.pixelSize: 20
+                font.bold: true
             }
-            TextField {
-                id: ipField
-                text: "192.168.0.65"
-                implicitWidth: 100
+
+            Item {
+                Layout.fillWidth: true
             }
-            Label {
-                text: "端口:"
+
+            // 内置主题切换
+            RowLayout {
+                spacing: 10
+                Label {
+                    text: "主题:"
+                }
+                Switch {
+                    id: themeSwitch
+                    text: checked ? "浅色" : "深色"
+                    checked: false
+                    onCheckedChanged: {
+                        window.Material.theme = checked ? Material.Light : Material.Dark
+                    }
+                }
+
+                ComboBox {
+                    model: ["Blue", "Red", "Green", "Amber", "Purple"]
+                    onActivated: index => {
+                                     const colors = [Material.Blue, Material.Red, Material.Green, Material.Amber, Material.Purple]
+                                     window.Material.accent = colors[index]
+                                 }
+                }
             }
-            TextField {
-                id: portField
-                text: "8000"
-                implicitWidth: 60
-            }
-            Label {
-                text: "用户名:"
-            }
-            TextField {
-                id: userField
-                text: "admin"
-                implicitWidth: 80
-            }
-            Label {
-                text: "密码:"
-            }
-            TextField {
-                id: passField
-                text: "ty123456"
-                implicitWidth: 100
-                echoMode: TextInput.Password
-            }
-            Label {
-                text: "通道:"
-            }
-            TextField {
-                id: channelField
-                text: controller.channel.toString()
-                implicitWidth: 40
-                onTextChanged: controller.channel = parseInt(text) || 1
-            }
-            Button {
-                id: loginBtn
-                text: controller.isLoggedIn ? "登出" : "登录"
-                onClicked: {
-                    if (controller.isLoggedIn) {
-                        controller.logout()
-                    } else {
-                        controller.login(ipField.text,
-                                         parseInt(portField.text),
-                                         userField.text, passField.text)
+        }
+
+        // 登录面板
+        Pane {
+            Layout.fillWidth: true
+            Material.elevation: 2
+
+            GridLayout {
+                anchors.fill: parent
+                columns: 5
+                columnSpacing: 10
+                rowSpacing: 10
+
+                TextField {
+                    id: ipField
+                    placeholderText: "IP地址"
+                    text: "192.168.0.65"
+                    Layout.fillWidth: true
+                }
+                TextField {
+                    id: portField
+                    placeholderText: "端口"
+                    text: "8000"
+                    Layout.preferredWidth: 80
+                }
+                TextField {
+                    id: userField
+                    placeholderText: "用户名"
+                    text: "admin"
+                    Layout.preferredWidth: 100
+                }
+                TextField {
+                    id: passField
+                    placeholderText: "密码"
+                    text: "ty123456"
+                    echoMode: TextInput.Password
+                    Layout.preferredWidth: 120
+                }
+                RowLayout {
+                    Label {
+                        text: "通道:"
+                    }
+                    SpinBox {
+                        id: channelSpin
+                        from: 1
+                        to: 64
+                        value: controller.channel
+                        onValueChanged: controller.channel = value
+                    }
+                }
+
+                RowLayout {
+                    Layout.columnSpan: 5
+                    Layout.fillWidth: true
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    Button {
+                        text: controller.isLoggedIn ? "登出" : "登录"
+                        highlighted: true
+                        onClicked: {
+                            if (controller.isLoggedIn)
+                                controller.logout()
+                            else
+                                controller.login(ipField.text,
+                                                 parseInt(portField.text),
+                                                 userField.text, passField.text)
+                        }
+                    }
+
+                    Button {
+                        text: controller.isPlaying ? "停止" : "播放"
+                        enabled: controller.isLoggedIn
+                        highlighted: true
+                        onClicked: controller.isPlaying ? controller.stopPlay(
+                                                              ) : controller.startPlay()
+                    }
+
+                    Button {
+                        text: "拍照"
+                        enabled: controller.isPlaying
+                        onClicked: controller.capture()
                     }
                 }
             }
         }
 
-        // 控制按钮栏
-        RowLayout {
-            spacing: 6
-            Button {
-                id: playBtn
-                text: controller.isPlaying ? "停止" : "播放"
-                enabled: controller.isLoggedIn
-                onClicked: {
-                    if (controller.isPlaying) {
-                        controller.stopPlay()
-                    } else {
-                        controller.startPlay(videoWindow)
-                    }
-                }
-            }
-            Button {
-                text: "拍照"
-                enabled: controller.isPlaying
-                onClicked: controller.capture()
-            }
-        }
-
-        // 视频显示区域 (占位符)
+        // 视频区域
         Rectangle {
-            id: videoPlaceholder
             Layout.fillWidth: true
             Layout.fillHeight: true
             color: "black"
+            radius: 4
+            clip: true
+
+            VideoOutput {
+                id: videoOutput
+                anchors.fill: parent
+                visible: controller.isPlaying
+                Component.onCompleted: controller.videoSink = videoOutput.videoSink
+            }
+
             Label {
                 anchors.centerIn: parent
+                text: "无信号"
                 color: "gray"
-                text: controller.isPlaying ? "" : "视频预览区域"
+                visible: !controller.isPlaying
             }
         }
 
         // 状态栏
-        Label {
-            id: statusLabel
-            text: controller.statusMessage
-            color: "darkgreen"
-            font.bold: true
+        RowLayout {
+            Layout.fillWidth: true
+            Label {
+                text: controller.statusMessage
+                font.italic: true
+                Layout.fillWidth: true
+            }
+            Label {
+                text: "Qt 6.10 | Material Style"
+                font.pixelSize: 10
+                opacity: 0.6
+            }
         }
     }
 }
