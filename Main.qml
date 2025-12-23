@@ -31,7 +31,7 @@ ApplicationWindow {
 
             Label {
                 text: "CameraPlayer By Linxmouse"
-                font.pixelSize: 20
+                font.pixelSize: 16
                 font.bold: true
             }
 
@@ -50,16 +50,16 @@ ApplicationWindow {
                     text: checked ? "浅色" : "深色"
                     checked: false
                     onCheckedChanged: {
-                        window.Material.theme = checked ? Material.Light : Material.Dark
+                        window.Material.theme = checked ? Material.Light : Material.Dark;
                     }
                 }
 
                 ComboBox {
                     model: ["Blue", "Red", "Green", "Amber", "Purple"]
                     onActivated: index => {
-                                     const colors = [Material.Blue, Material.Red, Material.Green, Material.Amber, Material.Purple]
-                                     window.Material.accent = colors[index]
-                                 }
+                        const colors = [Material.Blue, Material.Red, Material.Green, Material.Amber, Material.Purple];
+                        window.Material.accent = colors[index];
+                    }
                 }
             }
         }
@@ -69,17 +69,16 @@ ApplicationWindow {
             Layout.fillWidth: true
             Material.elevation: 2
 
-            GridLayout {
+            RowLayout {
                 anchors.fill: parent
-                columns: 5
-                columnSpacing: 10
-                rowSpacing: 10
+                spacing: 10
 
                 TextField {
                     id: ipField
                     placeholderText: "IP地址"
                     text: "192.168.0.65"
-                    Layout.fillWidth: true
+                    Layout.preferredWidth: 130
+                    Layout.minimumWidth: 130
                 }
                 TextField {
                     id: portField
@@ -112,36 +111,27 @@ ApplicationWindow {
                         onValueChanged: controller.channel = value
                     }
                 }
-
-                RowLayout {
-                    Layout.columnSpan: 5
+                Item {
                     Layout.fillWidth: true
-
-                    Item {
-                        Layout.fillWidth: true
-                    }
-
+                }
+                RowLayout {
+                    Layout.fillWidth: true
                     Button {
                         text: controller.isLoggedIn ? "登出" : "登录"
                         highlighted: true
                         onClicked: {
                             if (controller.isLoggedIn)
-                                controller.logout()
+                                controller.logout();
                             else
-                                controller.login(ipField.text,
-                                                 parseInt(portField.text),
-                                                 userField.text, passField.text)
+                                controller.login(ipField.text, parseInt(portField.text), userField.text, passField.text);
                         }
                     }
-
                     Button {
                         text: controller.isPlaying ? "停止" : "播放"
                         enabled: controller.isLoggedIn
                         highlighted: true
-                        onClicked: controller.isPlaying ? controller.stopPlay(
-                                                              ) : controller.startPlay()
+                        onClicked: controller.isPlaying ? controller.stopPlay() : controller.startPlay()
                     }
-
                     Button {
                         text: "拍照"
                         enabled: controller.isPlaying
