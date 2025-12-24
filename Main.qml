@@ -3,7 +3,7 @@ import QtQuick.Controls 6.0
 import QtQuick.Controls.Material 6.0
 import QtQuick.Layouts 6.0
 import QtMultimedia
-import HikCameraPlayer 1.0
+import work.dbugs.hikcamera 1.0
 
 ApplicationWindow {
     id: window
@@ -13,7 +13,7 @@ ApplicationWindow {
     title: "Hikvision Player (Material Theme)"
 
     // 设置默认主题
-    Material.theme: Material.Dark
+    Material.theme: Material.System
     Material.accent: Material.Blue
 
     AppController {
@@ -49,14 +49,15 @@ ApplicationWindow {
                 Switch {
                     id: themeSwitch
                     scale: 0.8
-                    checked: false
-                    onCheckedChanged: window.Material.theme = checked ? Material.Light : Material.Dark
+                    checked: window.Material.theme === Material.Light
+                    text: checked ? "浅色" : "深色"
+                    onToggled: window.Material.theme = checked ? Material.Light : Material.Dark
                 }
                 ComboBox {
-                    model: ["Blue", "Red", "Green", "Amber", "Purple"]
+                    model: ["Blue", "Orange", "Teal", "Purple"]
                     scale: 0.8
                     onActivated: index => {
-                        const colors = [Material.Blue, Material.Red, Material.Green, Material.Amber, Material.Purple];
+                        const colors = [Material.Blue, Material.Orange, Material.Teal, Material.Purple];
                         window.Material.accent = colors[index];
                     }
                 }
