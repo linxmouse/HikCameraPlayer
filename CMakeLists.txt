@@ -14,20 +14,20 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin)
 
+# 使用ffmpeg将png转换为ico
+# ffmpeg -i app_icon.png -vf "scale=256:256" app_icon.ico
 qt_add_executable(HikCameraPlayer WIN32
     main.cpp
+    app.rc
 )
-
-# Debug模式支持QML调试
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_definitions(-DQT_QML_DEBUG)
-endif()
 
 qt_add_qml_module(HikCameraPlayer
     URI HikCameraPlayer
     VERSION 1.0
     QML_FILES 
         Main.qml
+    RESOURCES
+        app_icon.png
     SOURCES
         src/AppController.h
         src/AppController.cpp

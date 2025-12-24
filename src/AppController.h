@@ -46,6 +46,16 @@ public:
     Q_INVOKABLE void capture();
     Q_INVOKABLE void setSDKLog(bool enable);
 
+    // PTZ 控制
+    enum PTZCommand {
+        ZoomIn = 11,
+        ZoomOut = 12,
+        FocusNear = 13,
+        FocusFar = 14
+    };
+    Q_ENUM(PTZCommand)
+    Q_INVOKABLE bool ptzControl(int command, bool stop, int speed = 4);
+
 signals:
     void loggedInChanged();
     void playingChanged();

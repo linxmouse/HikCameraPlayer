@@ -323,6 +323,42 @@ void AppController::capture()
     setStatus("正在抓图...");
 }
 
+bool AppController::ptzControl(int command, bool stop, int speed)
+{
+    if (m_lRealHandle < 0) {
+        setStatus("请先开始播放!");
+        return false;
+    }
+
+    // stop 为 true 表示停止动作，dwStop 参数为 1；stop 为 false 表示开始动作，dwStop 参数为 0
+    DWORD dwStop = stop ? 1 : 0;
+    
+    // 使用 NET_DVR_PTZControlWithSpeed 来支持速度控制
+    if (!NET_DVR_PTZControlWithSpeed(m_lRealHandle, (DWORD)command, dwStop, (DWORD)speed)) {
+        DWORD err = NET_DVR_GetLastError();
+        qDebug() << "NET_DVR_PTZControlWithSpeed failed, command:" << command << "stop:" << dwStop << "error:" << err;
+        setStatus(QString("云台控制失败, 错误码: %1").arg(err));
+        return false;
+    }
+
+    QString cmdName;
+    switch (command) {
+        case ZoomIn: cmdName = "拉近"; break;
+        case ZoomOut: cmdName = "拉远"; break;
+        case FocusNear: cmdName = "聚焦近"; break;
+        case FocusFar: cmdName = "聚焦远"; break;
+        default: cmdName = QString("命令 %1").arg(command); break;
+    }
+
+    if (stop) {
+        setStatus(QString("停止 %1").arg(cmdName));
+    } else {
+        setStatus(QString("正在 %1...").arg(cmdName));
+    }
+
+    return true;
+}
+
 void AppController::setStatus(const QString& msg)
 {
     m_statusMessage = msg;
