@@ -1,11 +1,11 @@
-import QtQuick 6.0
-import QtQuick.Controls 6.0
-import QtQuick.Controls.Material 6.0
-import QtQuick.Layouts 6.0
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Controls.Material
+import QtQuick.Layouts
 import QtMultimedia
 import work.dbugs.hikcamera 1.0
 
-ApplicationWindow {
+Window {
     id: window
     minimumWidth: 950
     minimumHeight: 600
@@ -82,7 +82,7 @@ ApplicationWindow {
                     TextField {
                         id: ipField
                         placeholderText: "IP"
-                        text: "192.168.0.65"
+                        text: "192.168.0.22"
                         Layout.preferredWidth: 110
                         font.pixelSize: 12
                         topPadding: 6

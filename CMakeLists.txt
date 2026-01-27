@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Multimedia)
-qt_standard_project_setup(REQUIRES 6.10)
+qt_standard_project_setup(REQUIRES 6.8)
 set(QT_QML_GENERATE_QMLLS_INI ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -82,3 +82,12 @@ if(WINDEPLOYQT_EXECUTABLE)
         COMMENT "Running windeployqt..."
     )
 endif()
+
+# -S . 表示当前目录是源码
+# -B build_release 表示把构建文件放在 build_release 文件夹
+# -D 指定构建类型为 Release
+# cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="D:/Qt/6.10.1/msvc2022_64"
+# --build build：告诉 CMake 去 build 文件夹里找图纸并开始编译
+# --clean-first：“先打扫再干活”。它会先删除之前编译产生的旧文件，确保这次编译是从零开始的，防止因为旧缓存导致莫名其妙的报错
+# --config Release：再次明确我们要 Release 版本
+# cmake --build build --clean-first --config Release
