@@ -84,10 +84,12 @@ if(WINDEPLOYQT_EXECUTABLE)
 endif()
 
 # -S . 表示当前目录是源码
-# -B build_release 表示把构建文件放在 build_release 文件夹
-# -D 指定构建类型为 Release
+# -B build 表示把构建文件放在 build 文件夹
+# -DCMAKE_BUILD_TYPE=Release 指定构建类型为 Release
+# -DCMAKE_PREFIX_PATH 指定 Qt 的安装路径
 # cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="D:/Qt/6.10.1/msvc2022_64"
+
 # --build build：告诉 CMake 去 build 文件夹里找图纸并开始编译
-# --clean-first：“先打扫再干活”。它会先删除之前编译产生的旧文件，确保这次编译是从零开始的，防止因为旧缓存导致莫名其妙的报错
-# --config Release：再次明确我们要 Release 版本
+# --clean-first：先删除之前编译产生的旧文件, 防止因为旧缓存导致莫名其妙的报错
+# --config Release：明确我们要 Release 版本
 # cmake --build build --clean-first --config Release
